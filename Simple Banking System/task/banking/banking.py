@@ -33,8 +33,10 @@ class BankSystem:
         # 3.step - sum all digit
         sum_all_digits = sum(card_digit_subtract)
         # 4.step - define checksum digit
-        checksum = 10 - sum_all_digits % 10
-        return checksum
+        if sum_all_digits % 10 == 0:
+            return 0
+        else:
+            return 10 - sum_all_digits % 10
 
     def login_account(self):
         input_card_number = input("Enter your card number:\n")
