@@ -1,25 +1,45 @@
 # Write your code here
+import string
 import sys
+import sqlite3
 import random
 
+bank_id = 400000
+conn = sqlite3.connect('card.s3db')
+cur = conn.cursor()
 
 class BankSystem:
     def __init__(self):
         self.card_number = 0
         self.card_pin = 0
-        self.acc_data = {}
+
+
+    def create_db(self):
+        try:
+            conn.execute('CREATE TABLE if not exists card ('
+                                'id INTEGER, '
+                                'number TEXT,'
+                                'pin TEXT, '
+                                'balance INTEGER DEFAULT 0'
+                                ');')
+            conn.commit()
+            # cur.close()
+        except sqlite3.OperationalError as OE:
+            print(OE)
+            cur.close()
 
     def create_account(self):
-        bank_id = 400000
-        account_id = random.randint(100000000, 999999999)
+        account_id = ''.join(random.sample(string.digits, 9))
         self.card_number = str(bank_id) + str(account_id) + str(self.checksum_define(bank_id, account_id))
-        self.card_pin = str(random.randint(0000, 9999)).zfill(4)
-        self.acc_data = {self.card_number: {"pin": self.card_pin, "balance": 0}}
-        print("\nYour card has been created"
+        self.card_pin = "".join(random.sample(string.digits, 4))
+        cur.execute(f'INSERT INTO card (number, pin) VALUES({self.card_number}, {self.card_pin})')
+        conn.commit()
+        print("\nYour card has been created\n"
               "Your card number:",
               self.card_number,
               "Your card PIN:",
               self.card_pin, sep='\n')
+        # cur.close()
         self.main_menu()
 
     def checksum_define(self, _bid, acc_id):
@@ -41,23 +61,26 @@ class BankSystem:
     def login_account(self):
         input_card_number = input("Enter your card number:\n")
         input_pin_number = input("Enter your pin:\n")
-        # login_data = {input_card_number: {"pin": input_pin_number}}
-        if (input_card_number == self.card_number) and (input_pin_number == self.acc_data[self.card_number]["pin"]):
-            print("You have successfully logged in!")
+        cur.execute(f"SELECT number, pin \
+                            FROM card \
+                            WHERE number = {input_card_number} and pin = {input_pin_number}")
+
+        if cur.fetchone() is not None:
+            print('\nYou have successfully logged in!\n')
             self.account_menu()
         else:
-            print("Wrong card number or PIN!")
-            self.main_menu()
+            print('\nWrong card number or PIN!\n')
+            self.account_menu()
 
     def get_balance(self):
-        print("Balance:", self.acc_data[self.card_number]["balance"])
+        print("Balance:", 0)
         self.account_menu()
 
     def account_menu(self):
         print("\n1. Balance\n"
               "2. Log out\n"
               "0. Exit\n")
-        menu_code = int(input("Input menu number (0, 1, 2):"))
+        menu_code = int(input("Input menu number (1, 2, 0):"))
         if menu_code == 1:
             self.get_balance()
         elif menu_code == 2:
@@ -65,23 +88,25 @@ class BankSystem:
             self.main_menu()
         elif menu_code == 0:
             print("Bye!")
+            conn.close()
             sys.exit()
 
     def main_menu(self):
         print("\n1. Create an account\n"
               "2. Log into account\n"
               "0. Exit\n")
-        menu_code = int(input("Input menu number (0, 1, 2):"))
+        menu_code = int(input("Input menu number (1, 2, 0):"))
         if menu_code == 1:
             self.create_account()
         elif menu_code == 2:
             self.login_account()
         elif menu_code == 0:
             print("Bye!")
+            conn.close()
             sys.exit()
 
 
 if __name__ == "__main__":
     my_bank_sys = BankSystem()
+    my_bank_sys.create_db()
     my_bank_sys.main_menu()
-
