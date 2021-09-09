@@ -61,13 +61,14 @@ class BankSystem:
     def login_account(self):
         input_card_number = input("Enter your card number:\n")
         input_pin_number = input("Enter your pin:\n")
-        self.acc_id = cur.execute(f"SELECT id \
+        acc_id = cur.execute(f"SELECT id \
                                     FROM card \
                                     WHERE number = {input_card_number} \
-                                    and pin = {input_pin_number}").fetchone()[0]
+                                    and pin = {input_pin_number}").fetchone()
 
-        if self.acc_id is not None:
+        if acc_id is not None:
             print('\nYou have successfully logged in!\n')
+            self.acc_id = acc_id[0]
             self.account_menu()
         else:
             print('\nWrong card number or PIN!\n')
@@ -93,36 +94,40 @@ class BankSystem:
 
     def transfer(self):
         trans_card = int(input("Transfer\nEnter card number:\n"))
-        if trans_card % 10 == self.checksum_define(str(trans_card // 10)):
-            trans_card_check = cur.execute(f"SELECT id FROM card WHERE number = {trans_card}").fetchone()[0]
-            if trans_card_check != self.acc_id and not None:
-                trans_money = int(input("Enter how much money you want to transfer:\n"))
-                your_balance = self.get_balance(flag="get")
-                if trans_money <= your_balance:
-                    cur.execute(f'UPDATE card SET balance = (SELECT balance '
-                                f'FROM card WHERE id = {self.acc_id}) - {trans_money} '
-                                f'WHERE id = {self.acc_id}')
-                    cur.execute(f'UPDATE card SET balance = (SELECT balance '
-                                f'FROM card WHERE number = {trans_card}) + {trans_money} '
-                                f'WHERE number = {trans_card}')
-                    conn.commit()
-                    print("Success!")
-                    self.account_menu()
-                else:
-                    print("Not enough money!")
-                    self.account_menu()
-            elif trans_card_check == self.acc_id:
-                print("You can't transfer money to the same account!")
-                self.account_menu()
-            elif trans_card_check is None:
-                print("Such a card does not exist.")
-                self.account_menu()
-        else:
+        trans_card_check = cur.execute(f"SELECT id FROM card WHERE number = {trans_card}").fetchone()
+        if trans_card % 10 != self.checksum_define(str(trans_card // 10)):
             print("Probably you made a mistake in the card number. Please try again!")
             self.account_menu()
+        else:
+            if trans_card_check is None:
+                print("Such a card does not exist.")
+                self.account_menu()
+            else:
+                if trans_card_check[0] != self.acc_id and not None:
+                    trans_money = int(input("Enter how much money you want to transfer:\n"))
+                    your_balance = self.get_balance(flag="get")
+                    if trans_money <= your_balance:
+                        cur.execute(f'UPDATE card SET balance = (SELECT balance '
+                                    f'FROM card WHERE id = {self.acc_id}) - {trans_money} '
+                                    f'WHERE id = {self.acc_id}')
+                        cur.execute(f'UPDATE card SET balance = (SELECT balance '
+                                    f'FROM card WHERE number = {trans_card}) + {trans_money} '
+                                    f'WHERE number = {trans_card}')
+                        conn.commit()
+                        print("Success!")
+                        self.account_menu()
+                    else:
+                        print("Not enough money!")
+                        self.account_menu()
+                elif trans_card_check[0] == self.acc_id:
+                    print("You can't transfer money to the same account!")
+                    self.account_menu()
 
     def close_account(self):
-        pass
+        cur.execute(f'DELETE FROM card WHERE id = {self.acc_id}')
+        conn.commit()
+        print("Your account has been deleted\n")
+        self.main_menu()
 
     def account_menu(self):
         print("\n1. Balance\n"
@@ -131,7 +136,7 @@ class BankSystem:
               "4. Close account\n"
               "5. Log out\n"
               "0. Exit\n")
-        menu_code = int(input("Input menu number (1, 2, 0):"))
+        menu_code = int(input("Input menu number (1, 2, 3, 4, 5, 0):"))
         if menu_code == 1:
             self.get_balance()
         elif menu_code == 2:
