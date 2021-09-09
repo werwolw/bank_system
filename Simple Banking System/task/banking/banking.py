@@ -8,20 +8,21 @@ bank_id = 400000
 conn = sqlite3.connect('card.s3db')
 cur = conn.cursor()
 
+
 class BankSystem:
     def __init__(self):
         self.card_number = 0
         self.card_pin = 0
-
+        self.acc_id = 1
 
     def create_db(self):
         try:
             conn.execute('CREATE TABLE if not exists card ('
-                                'id INTEGER, '
-                                'number TEXT,'
-                                'pin TEXT, '
-                                'balance INTEGER DEFAULT 0'
-                                ');')
+                         'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                         'number TEXT,'
+                         'pin TEXT, '
+                         'balance INTEGER DEFAULT 0'
+                         ');')
             conn.commit()
             # cur.close()
         except sqlite3.OperationalError as OE:
@@ -30,7 +31,7 @@ class BankSystem:
 
     def create_account(self):
         account_id = ''.join(random.sample(string.digits, 9))
-        self.card_number = str(bank_id) + str(account_id) + str(self.checksum_define(bank_id, account_id))
+        self.card_number = str(bank_id) + str(account_id) + str(self.checksum_define(str(bank_id) + str(account_id)))
         self.card_pin = "".join(random.sample(string.digits, 4))
         cur.execute(f'INSERT INTO card (number, pin) VALUES({self.card_number}, {self.card_pin})')
         conn.commit()
@@ -42,11 +43,10 @@ class BankSystem:
         # cur.close()
         self.main_menu()
 
-    def checksum_define(self, _bid, acc_id):
-        card_num = (str(_bid) + str(acc_id))
-        card_num = [int(x) for x in card_num]
+    def checksum_define(self, card_num):
+        _card_num = [int(x) for x in card_num]
         # Luhn algorithm - 1.step - multiply 2
-        digits = list(enumerate(card_num, start=1))
+        digits = list(enumerate(_card_num, start=1))
         card_digit_multiply = [int(elem) * 2 if index % 2 != 0 else int(elem) for index, elem in digits]
         # 2.step - subtract 9
         card_digit_subtract = [elem - 9 if elem > 9 else elem for elem in card_digit_multiply]
@@ -61,29 +61,86 @@ class BankSystem:
     def login_account(self):
         input_card_number = input("Enter your card number:\n")
         input_pin_number = input("Enter your pin:\n")
-        cur.execute(f"SELECT number, pin \
-                            FROM card \
-                            WHERE number = {input_card_number} and pin = {input_pin_number}")
+        self.acc_id = cur.execute(f"SELECT id \
+                                    FROM card \
+                                    WHERE number = {input_card_number} \
+                                    and pin = {input_pin_number}").fetchone()[0]
 
-        if cur.fetchone() is not None:
+        if self.acc_id is not None:
             print('\nYou have successfully logged in!\n')
             self.account_menu()
         else:
             print('\nWrong card number or PIN!\n')
+            self.main_menu()
+
+    def get_balance(self, flag="show"):
+        balance = cur.execute(f"SELECT balance \
+                                           FROM card \
+                                           WHERE id = {self.acc_id}").fetchone()[0]
+        if flag == "show":
+            print("Balance:", balance)
+            self.account_menu()
+        else:
+            return balance
+
+    def add_income(self):
+        income_money = int(input("Enter income:\n"))
+        cur.execute(f'UPDATE card SET balance = (SELECT balance '
+                    f'FROM card WHERE id = {self.acc_id}) + {income_money} '
+                    f'WHERE id = {self.acc_id}')
+        conn.commit()
+        self.account_menu()
+
+    def transfer(self):
+        trans_card = int(input("Transfer\nEnter card number:\n"))
+        if trans_card % 10 == self.checksum_define(str(trans_card // 10)):
+            trans_card_check = cur.execute(f"SELECT id FROM card WHERE number = {trans_card}").fetchone()[0]
+            if trans_card_check != self.acc_id and not None:
+                trans_money = int(input("Enter how much money you want to transfer:\n"))
+                your_balance = self.get_balance(flag="get")
+                if trans_money <= your_balance:
+                    cur.execute(f'UPDATE card SET balance = (SELECT balance '
+                                f'FROM card WHERE id = {self.acc_id}) - {trans_money} '
+                                f'WHERE id = {self.acc_id}')
+                    cur.execute(f'UPDATE card SET balance = (SELECT balance '
+                                f'FROM card WHERE number = {trans_card}) + {trans_money} '
+                                f'WHERE number = {trans_card}')
+                    conn.commit()
+                    print("Success!")
+                    self.account_menu()
+                else:
+                    print("Not enough money!")
+                    self.account_menu()
+            elif trans_card_check == self.acc_id:
+                print("You can't transfer money to the same account!")
+                self.account_menu()
+            elif trans_card_check is None:
+                print("Such a card does not exist.")
+                self.account_menu()
+        else:
+            print("Probably you made a mistake in the card number. Please try again!")
             self.account_menu()
 
-    def get_balance(self):
-        print("Balance:", 0)
-        self.account_menu()
+    def close_account(self):
+        pass
 
     def account_menu(self):
         print("\n1. Balance\n"
-              "2. Log out\n"
+              "2. Add income\n"
+              "3. Do transfer\n"
+              "4. Close account\n"
+              "5. Log out\n"
               "0. Exit\n")
         menu_code = int(input("Input menu number (1, 2, 0):"))
         if menu_code == 1:
             self.get_balance()
         elif menu_code == 2:
+            self.add_income()
+        elif menu_code == 3:
+            self.transfer()
+        elif menu_code == 4:
+            self.close_account()
+        elif menu_code == 5:
             print("You have successfully logged out!")
             self.main_menu()
         elif menu_code == 0:
